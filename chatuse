@@ -1,0 +1,7 @@
+#!/bin/sh
+set -eu
+chatuse_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+if [ -x "$chatuse_dir/runtime/node" ]; then
+  exec "$chatuse_dir/runtime/node" "$chatuse_dir/server/cli.mjs" "$@"
+fi
+exec node "$chatuse_dir/server/cli.mjs" "$@"

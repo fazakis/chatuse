@@ -1,0 +1,24 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { resolve } from 'node:path';
+import { readFile, mkdtemp, symlink, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+test('real MCP initialization, discovery, status, displays, and schema validation',async t=>{
+  const root=resolve('.');
+  const temp=await mkdtemp(resolve(tmpdir(),'chatuse-mcp-'));
+  t.after(()=>rm(temp,{recursive:true,force:true}));
+  const install=resolve(temp,'Chatuse with spaces');
+  await symlink(root,install,'dir');
+  const config=JSON.parse(await readFile(resolve(root,'.mcp.json'),'utf8')).mcpServers.chatuse;
+  const transport=new StdioClientTransport({...config,cwd:temp,env:{...process.env,CHATUSE_ROOT:install},stderr:'pipe'});
+  const client=new Client({name:'chatuse-test',version:'1'});
+  t.after(()=>client.close());await client.connect(transport);
+  const {tools}=await client.listTools();assert.equal(tools.length,21);
+  const status=await client.callTool({name:'chatuse_status',arguments:{}});
+  assert.ok(!status.isError, JSON.stringify(status));
+  const parsed=JSON.parse(status.content[0].text);assert.equal(parsed.platform,'macOS');assert.equal(parsed.allAppsAllowed,true);
+  const displays=await client.callTool({name:'chatuse_displays',arguments:{}});assert.ok(!displays.isError);
+  const bad=await client.callTool({name:'chatuse_type_text',arguments:{}});assert.equal(bad.isError,true);
+});

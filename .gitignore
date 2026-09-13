@@ -1,0 +1,10 @@
+node_modules/
+.build/
+runtime/
+artifacts/
+.DS_Store
+STOP
+.env
+.env.*
+!.env.example
+*.log

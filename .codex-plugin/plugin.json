@@ -1,0 +1,22 @@
+{
+  "name": "chatuse",
+  "version": "0.1.0",
+  "description": "Native Mac computer use: screenshots, accessibility, OCR, mouse, keyboard and window control.",
+  "author": {
+    "name": "Chatuse contributors"
+  },
+  "homepage": "https://github.com/fazakis/chatuse",
+  "repository": "https://github.com/fazakis/chatuse",
+  "license": "MIT",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Chatuse",
+    "shortDescription": "Control all Mac apps with Chatuse.",
+    "longDescription": "Local computer use for Intel and Apple Silicon Macs. No per-app approval layer; uses macOS Accessibility and Screen Recording permissions.",
+    "developerName": "Chatuse contributors",
+    "category": "Productivity",
+    "capabilities": [],
+    "defaultPrompt": ["Use Chatuse to inspect and operate apps on my Mac."]
+  },
+  "mcpServers": "./.mcp.json"
+}

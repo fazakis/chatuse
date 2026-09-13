@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "chatuse": {
+      "command": "/bin/sh",
+      "args": [
+        "-c",
+        "exec \"${CHATUSE_ROOT:-$HOME/chatuse}/chatuse\" mcp"
+      ]
+    }
+  }
+}
