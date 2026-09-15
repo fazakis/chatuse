@@ -50,6 +50,31 @@ try {
       await native.request('click',{screenshotId:screenshot.screenshotId,x:(b.x+b.width/2-s.x)*screenshot.width/s.width,y:(b.y+b.height/2-s.y)*screenshot.height/s.height});
       await delay(100);assert.equal(JSON.parse(await readFile(join(root,'artifacts/fixture-events.json'))).clicks,2);
     });
+    await record('fresh window captures preserve scaling and updated content',async()=>{
+      for (const maxWidth of [320,900]) {
+        const shot=await native.request('screenshot',{windowId:screenshot.windowId,maxWidth,ocr:true});
+        const bytes=Buffer.from(shot.imageBase64,'base64');
+        assert.equal(shot.width,maxWidth);
+        assert.equal(bytes.readUInt32BE(16),shot.width);assert.equal(bytes.readUInt32BE(20),shot.height);
+        assert.deepEqual(shot.screenBounds,screenshot.screenBounds);
+        assert.notEqual(shot.screenshotId,screenshot.screenshotId);
+        assert.ok(shot.text.some(t=>/Clicks:\s*2/.test(t.text)),JSON.stringify(shot.text));
+      }
+    });
+    await record('display screenshot with cursor and correct geometry',async()=>{
+      const {displays}=await native.request('displays');const display=displays.find(d=>d.main);
+      const shot=await native.request('screenshot',{displayId:display.id,maxWidth:640,showCursor:true});
+      const bytes=Buffer.from(shot.imageBase64,'base64');
+      assert.equal(shot.width,640);assert.equal(bytes.readUInt32BE(16),shot.width);assert.equal(bytes.readUInt32BE(20),shot.height);
+      assert.deepEqual(shot.screenBounds,display.bounds);
+    });
+    await record('window screenshot includes the system cursor only when requested',async()=>{
+      // The coordinate click above left the system cursor over the fixture button.
+      const options={windowId:screenshot.windowId,maxWidth:900};
+      const hidden=await native.request('screenshot',{...options,showCursor:false});
+      const visible=await native.request('screenshot',{...options,showCursor:true});
+      assert.notEqual(visible.imageBase64,hidden.imageBase64);
+    });
     await record('window move invalidates screenshot coordinates',async()=>{
       const b=screenshot.screenBounds;await native.request('window',{...target,action:'move',x:b.x+25,y:b.y+25});
       await delay(100);await assert.rejects(native.request('click',{screenshotId:screenshot.screenshotId,x:10,y:10}),{code:'WINDOW_MOVED'});

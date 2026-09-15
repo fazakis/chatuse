@@ -86,7 +86,11 @@ struct ImageSnapshot {
     func activate(_ app: NSRunningApplication) async throws {
         try requireInput()
         guard !app.isTerminated else { try fail("APP_EXITED", "The app has exited.") }
-        app.activate()
+        if #available(macOS 14.0, *) {
+            app.activate()
+        } else {
+            app.activate(options: [.activateIgnoringOtherApps])
+        }
         for _ in 0..<20 {
             if NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier { return }
             try await Task.sleep(nanoseconds: 50_000_000)
@@ -186,9 +190,8 @@ struct ImageSnapshot {
         }
         return (el, snapshot.appPID)
     }
-    func screenshot(_ args: Object) async throws -> Object {
-        try requireSession()
-        guard CGPreflightScreenCaptureAccess() else { try fail("SCREEN_RECORDING_REQUIRED", "Enable Chatuse in System Settings > Privacy & Security > Screen Recording, then restart Chatuse.") }
+    @available(macOS 14.0, *)
+    func modernScreenshot(_ args: Object) async throws -> CapturedScreenshot {
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
         let filter: SCContentFilter, frame: CGRect, pid: pid_t?, windowID: CGWindowID?
         if let wid = args["windowId"] as? Int {
@@ -211,6 +214,18 @@ struct ImageSnapshot {
         cfg.ignoreShadowsSingleWindow = true
         cfg.showsCursor = args["showCursor"] as? Bool ?? false
         let image = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: cfg)
+        return CapturedScreenshot(image: image, frame: frame, pid: pid, windowID: windowID)
+    }
+    func screenshot(_ args: Object) async throws -> Object {
+        try requireSession()
+        guard CGPreflightScreenCaptureAccess() else { try fail("SCREEN_RECORDING_REQUIRED", "Enable Chatuse in System Settings > Privacy & Security > Screen Recording, then restart Chatuse.") }
+        let capture: CapturedScreenshot
+        if #available(macOS 14.0, *) {
+            capture = try await modernScreenshot(args)
+        } else {
+            capture = try venturaScreenshot(args)
+        }
+        let image = capture.image, frame = capture.frame, pid = capture.pid, windowID = capture.windowID
         let bitmap = NSBitmapImageRep(cgImage: image)
         guard let png = bitmap.representation(using: .png, properties: [:]) else { try fail("CAPTURE_FAILED", "Could not encode screenshot.") }
         let id = UUID().uuidString

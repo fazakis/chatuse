@@ -59,7 +59,8 @@ final class PointerView: NSView {
         panel.animationBehavior = .none; panel.isReleasedWhenClosed = false
         panel.contentView = view
         timer = Timer.scheduledTimer(withTimeInterval:1.0/30.0,repeats:true) { [weak self] _ in
-            Task { @MainActor in self?.tick() }
+            guard let self else { return }
+            Task { @MainActor in self.tick() }
         }
     }
     func permitted() -> Bool {
