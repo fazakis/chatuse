@@ -3,10 +3,11 @@ import { resolve,join } from 'node:path';
 import { writeFile } from 'node:fs/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import assert from 'node:assert/strict';
+import { nativeCommand } from '../server/platform.mjs';
 const root=resolve(import.meta.dirname,'..');
 const pointer=new NativeClient(root,{command:join(root,'runtime/chatuse-pointer')});
 // Capture only the overlay's own window through the authorized legacy helper.
-const raw=new NativeClient(root,{command:join(root,'runtime/Chatuse.app/Contents/MacOS/Chatuse')});
+const raw=new NativeClient(root,{command:nativeCommand(root)});
 const controller=new NativeClient(root);
 const checks=[];
 try {

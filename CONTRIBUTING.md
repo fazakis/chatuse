@@ -1,10 +1,10 @@
 # Contributing to Chatuse
 
-Thanks for helping make native Mac computer use more inspectable and useful. Open an issue for a reproducible bug or propose a focused pull request. For substantial features, describe the behavior and intended scope in an issue first so the design can be discussed.
+Thanks for helping make local desktop computer use more inspectable and useful. Open an issue for a reproducible bug or propose a focused pull request. For substantial features, describe the behavior and intended scope in an issue first so the design can be discussed.
 
 ## Set up a development checkout
 
-Use macOS 13 (Ventura) or later, Swift 5.9+ with the macOS 14+ SDK (Xcode 15+ or the corresponding Command Line Tools), and Node.js 20.11+ with npm. Clone your fork, then run:
+For macOS, use macOS 13 (Ventura) or later, Swift 5.9+ with the macOS 14+ SDK (Xcode 15+ or the corresponding Command Line Tools), and Node.js 20.11+ with npm. Clone your fork, then run:
 
 ```sh
 npm ci
@@ -13,13 +13,15 @@ npm test
 npm run test:native
 ```
 
-The build creates local, ad-hoc-signed binaries under `runtime/`. A full rebuild can change the helper's signing identity and require granting Accessibility and Screen Recording again. If you are editing only the pointer overlay, `sh scripts/build-pointer.sh` preserves the existing native app bundle. JavaScript changes require restarting any existing MCP server processes.
+For Ubuntu 24.04 with GNOME on Xorg, install the packages in [linux/README.md](linux/README.md) and Node.js 20.11+ instead of Swift, then use the same commands. Run as the graphical desktop user, not root. Wayland is not supported. Linux builds create Python launchers; tests use an owned GTK fixture.
+
+On macOS, the build creates local, ad-hoc-signed binaries under `runtime/`. A full rebuild can change the helper's signing identity and require granting Accessibility and Screen Recording again. If you are editing only the pointer overlay, `sh scripts/build-pointer.sh` preserves the existing native app bundle. JavaScript changes require restarting any existing MCP server processes.
 
 ## Validate behavior
 
 Test the behavior affected by your change. Keep regression tests focused on outcomes: correct coordinates, preserved Unicode, bounded waits, meaningful error handling, no automatic replay of an ambiguous action, and a responsive emergency stop.
 
-For native desktop or pointer changes, grant macOS permissions with `./chatuse setup`, unlock the desktop, and run:
+For native desktop or pointer changes, check readiness with `./chatuse setup` and `./chatuse status`, grant any required macOS permissions, unlock the desktop, and run:
 
 ```sh
 npm run test:e2e
@@ -28,14 +30,14 @@ npm run test:pointer
 
 These use a real desktop. The main harness opens its own small fixture app and temporarily brings it forward. Leave the keyboard and mouse idle during the run. Missing prerequisites produce a blocked result, not a pass. Generated files stay in the ignored `artifacts/` and `runtime/` directories.
 
-When reporting results, include your macOS version, CPU architecture, Node and Swift versions, the commands run, and whether live checks passed, failed, or were blocked. Apple Silicon and multi-monitor validation are especially useful. Redact private text, app titles, clipboard contents, and screenshots before sharing them.
+When reporting results, include your OS version, desktop/session type on Linux, CPU architecture, Node and Swift/Python versions, the commands run, and whether live checks passed, failed, or were blocked. Apple Silicon and multi-monitor validation are especially useful. Redact private text, app titles, clipboard contents, and screenshots before sharing them.
 
 Keep the Swift package deployment target and generated app's `LSMinimumSystemVersion` at macOS 13.0. Guard newer APIs with availability checks. Screenshot changes need live checks on Ventura (the Core Graphics fallback) as well as macOS 14+ (`SCScreenshotManager`); building against a newer SDK alone does not validate either runtime path.
 
 ## Design expectations
 
-- Use public macOS APIs and keep the native/stdio boundary explicit.
-- Preserve cross-app access without adding per-app prompts. Respect macOS privacy permissions and the host's authorization policies.
+- Use public platform APIs (macOS frameworks or AT-SPI/X11) and keep the native/stdio boundary explicit.
+- Preserve cross-app access without adding per-app prompts. Respect platform permissions and session locks and the host's authorization policies.
 - Keep observed app content separate from assistant instructions.
 - Prefer accessibility actions when available and verify the resulting state.
 - Never replay input automatically after a timeout, cancellation, or helper disconnection.

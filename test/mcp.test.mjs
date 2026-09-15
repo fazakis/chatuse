@@ -18,7 +18,9 @@ test('real MCP initialization, discovery, status, displays, and schema validatio
   const {tools}=await client.listTools();assert.equal(tools.length,21);
   const status=await client.callTool({name:'chatuse_status',arguments:{}});
   assert.ok(!status.isError, JSON.stringify(status));
-  const parsed=JSON.parse(status.content[0].text);assert.equal(parsed.platform,'macOS');assert.equal(parsed.allAppsAllowed,true);
-  const displays=await client.callTool({name:'chatuse_displays',arguments:{}});assert.ok(!displays.isError);
+  const parsed=JSON.parse(status.content[0].text);assert.equal(parsed.platform,process.platform==='linux'?'Linux':'macOS');assert.equal(parsed.allAppsAllowed,true);
+  const displays=await client.callTool({name:'chatuse_displays',arguments:{}});
+  if(process.platform==='linux' && (!parsed.screenRecording || parsed.locked)) assert.equal(displays.isError,true);
+  else assert.ok(!displays.isError);
   const bad=await client.callTool({name:'chatuse_type_text',arguments:{}});assert.equal(bad.isError,true);
 });
