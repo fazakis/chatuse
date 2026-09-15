@@ -1,7 +1,7 @@
 {
   "name": "chatuse",
   "version": "0.1.0",
-  "description": "Native Mac computer use: screenshots, accessibility, OCR, mouse, keyboard and window control.",
+  "description": "macOS and Ubuntu/X11 computer use: screenshots, accessibility, OCR, mouse, keyboard and window control.",
   "author": {
     "name": "Chatuse contributors"
   },
@@ -11,12 +11,12 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Chatuse",
-    "shortDescription": "Control all Mac apps with Chatuse.",
-    "longDescription": "Local computer use for Intel and Apple Silicon Macs. No per-app approval layer; uses macOS Accessibility and Screen Recording permissions.",
+    "shortDescription": "Control desktop apps with Chatuse.",
+    "longDescription": "Local computer use for macOS 13+ and Ubuntu GNOME on Xorg. No per-app approval layer; requires desktop permissions and an unlocked session. Wayland is not supported.",
     "developerName": "Chatuse contributors",
     "category": "Productivity",
     "capabilities": [],
-    "defaultPrompt": ["Use Chatuse to inspect and operate apps on my Mac."]
+    "defaultPrompt": ["Use Chatuse to inspect and operate apps on my desktop."]
   },
   "mcpServers": "./.mcp.json"
 }

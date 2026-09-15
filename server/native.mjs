@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { join } from 'node:path';
 import { VisualController } from './visual.mjs';
+import { nativeCommand } from './platform.mjs';
 
 export class NativeError extends Error {
   constructor(code, message) { super(message); this.code = code; }
@@ -11,7 +12,7 @@ export class NativeError extends Error {
 export class NativeClient {
   constructor(root, { command, args = [], timeoutMs = 45000 } = {}) {
     this.root = root;
-    this.command = command ?? join(root, 'runtime/Chatuse.app/Contents/MacOS/Chatuse');
+    this.command = command ?? nativeCommand(root);
     this.args = args; this.timeoutMs = timeoutMs; this.counter = 0;
     this.child = null; this.pending = null; this.queue = Promise.resolve();
     this.visual = command ? null : new VisualController(root,

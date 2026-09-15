@@ -1,18 +1,18 @@
 {
   "name": "chatuse",
   "version": "0.1.0",
-  "description": "Native Intel and Apple Silicon Mac computer use with MCP, accessibility, screenshots, OCR, and input",
+  "description": "Native macOS and Ubuntu/X11 computer use with MCP, accessibility, screenshots, OCR, and input",
   "main": "server/index.mjs",
   "scripts": {
     "build": "sh scripts/build.sh",
     "start": "node server/index.mjs",
     "test": "node --test test/*.test.mjs",
-    "test:native": "swift test",
+    "test:native": "node scripts/test-native.mjs",
     "test:e2e": "node scripts/e2e.mjs",
     "test:pointer": "node scripts/verify-pointer.mjs",
     "doctor": "node server/cli.mjs status"
   },
-  "keywords": ["macos", "computer-use", "mcp", "accessibility", "automation"],
+  "keywords": ["macos", "ubuntu", "linux", "x11", "computer-use", "mcp", "accessibility", "automation"],
   "author": "Chatuse contributors",
   "repository": {"type": "git", "url": "git+https://github.com/fazakis/chatuse.git"},
   "homepage": "https://github.com/fazakis/chatuse#readme",
