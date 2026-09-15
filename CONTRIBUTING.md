@@ -4,7 +4,7 @@ Thanks for helping make native Mac computer use more inspectable and useful. Ope
 
 ## Set up a development checkout
 
-Use macOS 14+, Swift 5.9+, and Node.js 20.11+ with npm. Clone your fork, then run:
+Use macOS 13 (Ventura) or later, Swift 5.9+ with the macOS 14+ SDK (Xcode 15+ or the corresponding Command Line Tools), and Node.js 20.11+ with npm. Clone your fork, then run:
 
 ```sh
 npm ci
@@ -29,6 +29,8 @@ npm run test:pointer
 These use a real desktop. The main harness opens its own small fixture app and temporarily brings it forward. Leave the keyboard and mouse idle during the run. Missing prerequisites produce a blocked result, not a pass. Generated files stay in the ignored `artifacts/` and `runtime/` directories.
 
 When reporting results, include your macOS version, CPU architecture, Node and Swift versions, the commands run, and whether live checks passed, failed, or were blocked. Apple Silicon and multi-monitor validation are especially useful. Redact private text, app titles, clipboard contents, and screenshots before sharing them.
+
+Keep the Swift package deployment target and generated app's `LSMinimumSystemVersion` at macOS 13.0. Guard newer APIs with availability checks. Screenshot changes need live checks on Ventura (the Core Graphics fallback) as well as macOS 14+ (`SCScreenshotManager`); building against a newer SDK alone does not validate either runtime path.
 
 ## Design expectations
 

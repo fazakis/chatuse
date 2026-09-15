@@ -6,7 +6,7 @@ Chatuse lets an AI assistant inspect and operate Mac apps through 21 [Model Cont
 
 All apps are allowed by default. You grant the normal macOS Accessibility and Screen Recording permissions once during setup; Chatuse does not add app allowlists or ask for consent each time it switches apps. Your MCP host retains its own authorization rules.
 
-**Status:** early release, built and exercised on an Intel Mac running macOS 15.7.9. The source targets macOS 14+ and builds for the host architecture. Apple Silicon is a supported build target but has not yet been validated on hardware by this project. There is no Linux or Windows backend.
+**Status:** early release targeting macOS 13 (Ventura) or later, building for the host architecture. Originally exercised on an Intel Mac running macOS 15.7.9; Ventura validation is described under [Development](#development). Apple Silicon is a supported build target but has not yet been validated on hardware by this project. There is no Linux or Windows backend.
 
 [Installation](#installation) · [MCP integration](#mcp-integration) · [How it works](#how-it-works) · [Tools](#tools) · [Development](#development) · [MIT license](LICENSE)
 
@@ -42,9 +42,9 @@ Chatuse supplies the tools. It does not include an AI model, call a model API it
 
 | Requirement | Details |
 | --- | --- |
-| macOS | 14 or later, with an unlocked graphical desktop for app interaction |
+| macOS | 13 (Ventura) or later, with an unlocked graphical desktop for app interaction |
 | Architecture | Intel or Apple Silicon; the build produces binaries for your current Mac |
-| Swift | 5.9+ through Xcode or Xcode Command Line Tools |
+| Swift | 5.9+ with the macOS 14+ SDK, through Xcode 15+ or the corresponding Command Line Tools |
 | Node.js | 20.11+; Node.js 22 or newer recommended, with npm available |
 | Git | Needed to clone and update the repository |
 | Permissions | Accessibility for inspection/input; Screen Recording for screenshots/OCR |
@@ -122,12 +122,14 @@ flowchart TD
     B -->|Serialized JSON requests| D[Swift native helper]
     B -->|Visual feedback| E[Swift pointer overlay]
     D --> F[Accessibility: inspect and act]
-    D --> G[ScreenCaptureKit and Vision: capture and OCR]
+    D --> G[ScreenCaptureKit/Core Graphics and Vision: capture and OCR]
     D --> H[AppKit and Core Graphics: apps, windows, and input]
     E --> I[Click-through panel on the desktop]
 ```
 
 The Node.js layer validates tool arguments, manages a persistent native process, coordinates pointer feedback, and returns text and images through MCP. The Swift helper talks to macOS through public frameworks. Communication between these processes is local stdin/stdout; there is no listening port.
+
+Screenshots use `SCScreenshotManager` on macOS 14+, and public Core Graphics window/display capture APIs on Ventura. Both paths support window/display selection, output scaling, and OCR through the same tool interface, and require the normal Screen Recording permission. Ventura excludes window shadows to preserve coordinate mapping and composites the current system cursor when `showCursor` is requested; cursor appearance and screen pixels are sampled separately.
 
 A typical interaction follows this loop:
 
@@ -233,13 +235,16 @@ npm run test:e2e
 npm run test:pointer
 ```
 
-The desktop harness checks accessibility actions, Unicode typing, screenshots/OCR, coordinate clicks, stale screenshot rejection, window operations, and emergency stop. It writes `artifacts/e2e-report.json` and exits **2** with a blocked report when desktop prerequisites are absent. The pointer harness checks visibility, input transparency, focus preservation, screenshot suppression, and idle hiding. Generated reports, screenshots, binaries, logs, and runtime state are excluded from Git.
+The desktop harness checks accessibility actions, Unicode typing, window/display screenshots, fresh frame content and scaling, OCR, coordinate clicks, stale screenshot rejection, window operations, and emergency stop. It writes `artifacts/e2e-report.json` and exits **2** with a blocked report when desktop prerequisites are absent. The pointer harness checks visibility, input transparency, focus preservation, screenshot suppression, and idle hiding. Generated reports, screenshots, binaries, logs, and runtime state are excluded from Git.
 
 At initial publication, validation on the Intel development Mac passed **18 Node tests, 6 Swift tests, 10 live desktop checks, and 5 pointer checks**. Those results describe that environment, not a certification of every Mac or third-party app.
+
+The Ventura compatibility build was checked on **macOS 13.7.8, Intel x86_64, Xcode 15.2 / Swift 5.9.2, and Node.js 22.22.0**: the release build, **18 Node tests, 6 Swift tests, 13 live desktop checks, and 5 pointer checks** passed, including a real MCP connection, Unicode input, window/display screenshots, OCR, cursor rendering, scaling, and screenshot-coordinate clicks. The app and both executables declare a 13.0 minimum OS. These Ventura changes have not been re-exercised on a newer macOS or Apple Silicon machine.
 
 | Source | Responsibility |
 | --- | --- |
 | `Sources/ChatuseNative/Main.swift` | Native operations, setup window, and JSON transport |
+| `Sources/ChatuseNative/VenturaScreenshot.swift` | Ventura Core Graphics capture, scaling, and cursor composition |
 | `Sources/ChatuseCore/Core.swift` | Coordinate mapping, snapshot expiry, and Unicode helpers |
 | `Sources/ChatusePointer/Main.swift` | Nonactivating pointer panel and animations |
 | `server/native.mjs`, `server/service.mjs` | Native process lifecycle, scheduling, and audit logging |

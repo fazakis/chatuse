@@ -23,9 +23,11 @@ try {
   await writeFile(join(root,'artifacts/pointer-preview.png'),Buffer.from(shot.imageBase64,'base64'));
   checks.push('Captured the rendered overlay window for visual review');
   // A different client hides visible overlays while it captures, using shared capture markers.
-  await controller.request('screenshot',{windowId:s.windowId,maxWidth:500}).catch(()=>{});
+  const capture=controller.request('screenshot',{windowId:s.windowId,maxWidth:500},{timeoutMs:15000})
+    .catch(e=>assert.notEqual(e.code,'HELPER_TIMEOUT','A hidden window must not hang the native helper'));
   await delay(100);
   assert.equal((await pointer.request('state')).visible,false);
+  await capture;
   checks.push('Capture coordination suppresses another client overlay');
   await pointer.request('move',{x,y,durationMs:0});await delay(3400);
   assert.equal((await pointer.request('state')).visible,false);
