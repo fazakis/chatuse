@@ -25,11 +25,20 @@ test('overlay failure does not replay or block the actual click',async t=>{
 });
 test('screenshot hides overlay and restores it even on capture failure',async t=>{
   const calls=[];
-  const v=await setup(t,async()=>{throw Error('capture denied');},{request:async m=>{calls.push(m);return{};},close(){}});
+  const v=await setup(t,async method=>{if(method==='status')return {};throw Error('capture denied');},{request:async m=>{calls.push(m);return{};},close(){}});
   await assert.rejects(v.request('screenshot',{},{}),/capture denied/);assert.deepEqual(calls,['hide','restore']);
 });
 test('no visual feedback is issued when input readiness fails',async t=>{
   const calls=[];
   const v=await setup(t,async m=>m==='status'?{accessibility:true,locked:true}:{},{request:async m=>{calls.push(m);},close(){}});
   await v.request('click',{x:10,y:20},{});assert.deepEqual(calls,[]);
+});
+
+test('Wayland suppresses X11 overlay and window activation, but still performs input',async t=>{
+  const calls=[], native=[];
+  const v=await setup(t,async m=>{native.push(m);return m==='status'?{accessibility:true,visualPointerAvailable:false}:{};},{request:async m=>{calls.push(m);},close(){}});
+  await v.request('status',{},{});
+  await v.request('click',{x:10,y:20,pid:100},{});
+  await v.request('screenshot',{},{});
+  assert.deepEqual(calls,[]);assert.ok(!native.includes('window'));assert.equal(native.filter(m=>m==='click').length,1);
 });

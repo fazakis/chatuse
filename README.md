@@ -1,12 +1,12 @@
 # Chatuse
 
-**Open-source computer use for macOS and Ubuntu/X11, with a visible pointer and no per-app approval layer.**
+**Open-source computer use for macOS and Ubuntu, with X11 support and experimental GNOME Wayland portal support.**
 
-Chatuse lets an AI assistant inspect and operate desktop apps through 21 [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) tools, or lets you invoke the same operations from a CLI. It combines native accessibility trees, screenshots, on-device OCR, keyboard and mouse input, and window management.
+Chatuse lets an AI assistant inspect and operate desktop apps through 22 [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) tools, or lets you invoke the same operations from a CLI. It combines native accessibility trees, screenshots, on-device OCR, keyboard and mouse input, and window management.
 
-All apps are allowed by default. On macOS, grant the normal Accessibility and Screen Recording permissions. On Ubuntu, run in your unlocked X11 desktop with AT-SPI accessibility available. Chatuse does not add app allowlists or ask for consent each time it switches apps. Your MCP host retains its own authorization rules.
+All apps are allowed by default. On macOS, grant the normal Accessibility and Screen Recording permissions. On Ubuntu, run in your unlocked desktop with AT-SPI accessibility available; Wayland additionally requires system desktop-sharing consent. Chatuse does not add app allowlists or ask for consent each time it switches apps. Your MCP host retains its own authorization rules.
 
-**Status:** early release targeting macOS 13 (Ventura) or later and Ubuntu 24.04 with GNOME on Xorg. The macOS build targets the host architecture; the Linux backend uses Python, AT-SPI2, X11, GTK, and Tesseract. Apple Silicon and Linux ARM hardware have not yet been validated. **Wayland and Windows are not supported.** See [Ubuntu setup and limitations](linux/README.md) and the validation notes under [Development](#development).
+**Status:** early release targeting macOS 13 (Ventura) or later and Ubuntu 24.04 with GNOME on Xorg. The macOS build targets the host architecture; the Linux backend uses Python, AT-SPI2, X11, GTK, and Tesseract. Apple Silicon and Linux ARM hardware have not yet been validated. **Experimental GNOME Wayland support** is available through consent-based portals; Windows is not supported. See [Ubuntu setup and limitations](linux/README.md) and the validation notes under [Development](#development).
 
 [Installation](#installation) · [MCP integration](#mcp-integration) · [How it works](#how-it-works) · [Tools](#tools) · [Development](#development) · [MIT license](LICENSE)
 
@@ -93,7 +93,7 @@ npm run build
 ./chatuse status
 ```
 
-Run Chatuse as the logged-in desktop user, not root. The build detects Linux and creates `runtime/chatuse-native` and `runtime/chatuse-pointer` launchers using `/usr/bin/python3`. MCP registration and the CLI work the same way on both platforms. Select **Ubuntu on Xorg** at the login screen if `status` reports Wayland; an Xwayland `DISPLAY` does not provide full Wayland desktop access.
+Run Chatuse as the logged-in desktop user, not root. The build detects Linux and creates `runtime/chatuse-native` and `runtime/chatuse-pointer` launchers using `/usr/bin/python3`. MCP registration and the CLI work the same way on both platforms. For GNOME Wayland, install the portal/PipeWire dependencies and approve desktop sharing as described in [Wayland setup](linux/README.md#wayland). An Xwayland `DISPLAY` is never used as a full-desktop fallback.
 
 See [Linux details](linux/README.md) for environment setup, app identifiers, keyboard differences, session checks, and test commands.
 
@@ -231,7 +231,7 @@ The overlay ignores mouse events and cannot take keyboard focus. It fades after 
 
 Chatuse runs with your user account's desktop access. All apps are allowed by its policy, but platform permissions, session state, app accessibility support, and the MCP host's authorization rules still determine which actions work.
 
-- **System permissions:** Chatuse uses the normal Accessibility and Screen Recording flows. It does not modify TCC databases or unlock a locked session. It refuses new input while macOS Secure Input is active and redacts secure accessibility field values. Ubuntu requires an active unlocked X11 session. X11 has no equivalent global Secure Input detector; see [Linux session controls](linux/README.md#session-and-input-controls).
+- **System permissions:** Chatuse uses the normal Accessibility and Screen Recording flows. It does not modify TCC databases or unlock a locked session. It refuses new input while macOS Secure Input is active and redacts secure accessibility field values. Ubuntu requires an active unlocked desktop session. Wayland uses the normal system sharing dialog and cannot unlock the screen. X11 has no equivalent global Secure Input detector; see [Linux session controls](linux/README.md#session-and-input-controls).
 - **Observations:** screenshots, OCR, accessibility data, and clipboard reads can contain private material visible to your account. Your MCP host may send tool results to its model and retain them in conversation history. Chatuse itself makes no model requests and sends no telemetry.
 - **Audit log:** `runtime/audit.jsonl` records operation names, timestamps, duration, and result codes. It omits arguments, typed text, app contents, clipboard values, and images. It rotates at roughly 2 MB with one backup.
 - **Serialization:** native operations are serialized per helper, and an OS file lock prevents simultaneous input from multiple Chatuse helper processes using the same checkout.
@@ -264,7 +264,7 @@ At initial publication, validation on the Intel development Mac passed **18 Node
 
 The Ventura compatibility build was checked on **macOS 13.7.8, Intel x86_64, Xcode 15.2 / Swift 5.9.2, and Node.js 22.22.0**: the release build, **18 Node tests, 6 Swift tests, 13 live desktop checks, and 5 pointer checks** passed, including a real MCP connection, Unicode input, window/display screenshots, OCR, cursor rendering, scaling, and screenshot-coordinate clicks. The app and both executables declare a 13.0 minimum OS. These Ventura changes have not been re-exercised on a newer macOS or Apple Silicon machine.
 
-Ubuntu support was validated on **Ubuntu 24.04.2 LTS, GNOME on Xorg, Intel x86_64, Python 3.12, and Node.js 22.22.0**: **18 Node tests, 11 Python core/session tests, 22 live desktop checks, and 5 pointer checks** passed. A separate real MCP desktop run launched the owned GTK fixture through a desktop file, typed Unicode, clicked an accessible button, waited for its result, and verified AT-SPI, OCR, and returned PNG content (`node scripts/linux/mcp-smoke.mjs`). The 42 Ventura checks above were rerun successfully with the platform-aware server changes. Wayland, Linux ARM, HiDPI/multi-monitor Linux, and other desktop environments have not been validated.
+Ubuntu support was validated on **Ubuntu 24.04.2 LTS, GNOME on Xorg, Intel x86_64, Python 3.12, and Node.js 22.22.0**: **18 Node tests, 11 Python core/session tests, 22 live desktop checks, and 5 pointer checks** passed. A separate real MCP desktop run launched the owned GTK fixture through a desktop file, typed Unicode, clicked an accessible button, waited for its result, and verified AT-SPI, OCR, and returned PNG content (`node scripts/linux/mcp-smoke.mjs`). The 42 Ventura checks above were rerun successfully with the platform-aware server changes. Those results describe the original X11 backend. The experimental GNOME Wayland backend has separate validation described in [Linux notes](linux/README.md#wayland); Linux ARM, mixed-DPI/multi-monitor Wayland, and other compositors remain unvalidated.
 
 | Source | Responsibility |
 | --- | --- |

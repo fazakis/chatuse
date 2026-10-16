@@ -18,7 +18,7 @@ else if (command === 'setup') {
     const child = spawn(nativeCommand(root), ['--setup'], {detached:true,stdio:'ignore',env:{...process.env,CHATUSE_ROOT:root}});
     await new Promise((resolve,reject)=>{child.once('spawn',resolve);child.once('error',reject);});
     child.unref();
-    console.log('Started Chatuse Setup. Use an unlocked Ubuntu on Xorg desktop and enable desktop accessibility if needed.');
+    console.log('Started Chatuse Setup. Use an unlocked desktop; Wayland additionally needs portal sharing permission.');
   }
 }
 else if (command === 'pointer-demo') {await import('../scripts/pointer-demo.mjs');}
@@ -32,7 +32,7 @@ else if (command === 'resume') {
   await unlink(join(root, 'STOP')).catch(e => { if (e.code !== 'ENOENT') throw e; });
   console.log('Chatuse input resumed.');
 } else if (command === 'help') {
-  console.log('Chatuse — macOS and Ubuntu/X11 computer use\n\n./chatuse status\n./chatuse permissions\n./chatuse list_apps\n./chatuse screenshot \'{"app":"frontmost"}\'\n./chatuse inspect \'{"app":"frontmost"}\'\n./chatuse mcp\n./chatuse stop | resume\n\nCommands: '+tools.map(t=>t.name).join(', ')+'\n\nCLI calls are one-shot. Element and screenshot IDs persist only in an MCP or native session.');
+  console.log('Chatuse — macOS and Ubuntu computer use\n\n./chatuse status\n./chatuse permissions\n./chatuse list_apps\n./chatuse screenshot \'{"app":"frontmost"}\'\n./chatuse inspect \'{"app":"frontmost"}\'\n./chatuse mcp\n./chatuse stop | resume\n\nCommands: '+tools.map(t=>t.name).join(', ')+'\n\nCLI calls are one-shot. Element and screenshot IDs persist only in an MCP or native session.');
 } else {
   const native = new NativeClient(root), service = new Service(root, native);
   try {

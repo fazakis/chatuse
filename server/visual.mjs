@@ -23,7 +23,7 @@ const inputs=new Set(['click','move_pointer','scroll','drag']);
 export class VisualController {
   constructor(root,pointer,raw) {this.root=root;this.pointer=pointer;this.raw=raw;this.snapshots=new Map();this.images=new Map();}
   enabled() {return process.env.CHATUSE_VISUAL_POINTER!=='0' && !existsSync(join(this.root,'runtime/pointer-disabled'));}
-  available() {return existsSync(join(this.root,'runtime/chatuse-pointer'));}
+  available() {return this.nativeVisualAvailable !== false && existsSync(join(this.root,'runtime/chatuse-pointer'));}
   cache(method,result) {
     if(method==='inspect' && result.snapshotId) {
       this.snapshots.set(result.snapshotId,{at:Date.now(),pid:result.app?.pid,elements:new Map(result.elements.filter(e=>e.bounds).map(e=>[e.id,e.bounds]))});
@@ -38,7 +38,11 @@ export class VisualController {
     try {return await this.pointer.request(method,args);} catch {return null;}
   }
   async request(method,args,options) {
-    if(method==='status')return{...await this.raw(method,args,options),visualPointer:this.enabled(),visualPointerAvailable:this.available()};
+    if (process.platform === 'linux' || method === 'status') {
+      const status = await this.raw('status', {}, options);
+      this.nativeVisualAvailable = status.visualPointerAvailable !== false;
+      if (method === 'status') return {...status, visualPointer:this.available() && this.enabled(), visualPointerAvailable:this.available()};
+    }
     let marker;
     if(method==='screenshot' && this.available()) {
       const dir=join(this.root,'runtime/pointer-captures');await mkdir(dir,{recursive:true});

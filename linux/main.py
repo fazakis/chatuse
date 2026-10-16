@@ -29,6 +29,7 @@ from accessibility import Accessibility
 from core import ChatuseError, References, contains, fail, number, same_geometry, scaled_size, screen_point
 from desktop import Desktop
 from session import session_state
+from wayland import WaylandDesktop
 
 
 INPUTS = {'click', 'type_text', 'press_key', 'scroll', 'drag', 'move_pointer',
@@ -42,7 +43,10 @@ class Driver:
         self.images = References()
         self.accessibility = Accessibility()
         self.desktop = None
-        if os.environ.get('DISPLAY'):
+        self.wayland = session_state()['sessionType'] == 'wayland'
+        if self.wayland:
+            self.desktop = WaylandDesktop(root, self.wayland_guard)
+        elif os.environ.get('DISPLAY'):
             try:
                 self.desktop = Desktop()
             except (error.DisplayConnectionError, error.XError, OSError):
@@ -57,12 +61,15 @@ class Driver:
 
     def require_session(self):
         s = self.session()
-        if s['sessionType'] == 'wayland':
-            fail('WAYLAND_UNSUPPORTED', 'Full desktop control currently requires Ubuntu on Xorg. Select that session at the login screen; Xwayland alone is not supported.')
-        if self.desktop is None or s['sessionType'] != 'x11':
-            fail('DESKTOP_REQUIRED', 'Run Chatuse inside an X11 desktop as its user, with DISPLAY, XAUTHORITY and the desktop D-Bus session available.')
+        if self.desktop is None or s['sessionType'] not in ('x11', 'wayland'):
+            fail('DESKTOP_REQUIRED', 'Run Chatuse inside the active desktop as its user with the desktop D-Bus session available.')
         if not s['sessionActive'] or not s['lockStateKnown'] or s['locked']:
             fail('SESSION_LOCKED', 'An active, unlocked local desktop session is required. Chatuse does not unlock sessions.')
+
+    def wayland_guard(self):
+        if self.cancelled:
+            fail('CANCELLED', 'Helper is closing.')
+        self.require_session()
 
     def require_input(self):
         if self.cancelled:
@@ -70,7 +77,11 @@ class Driver:
         if (self.root / 'STOP').exists():
             fail('STOPPED', 'Emergency stop is active. Resume locally with chatuse resume.')
         self.require_session()
-        if not self.desktop.connection.has_extension('XTEST'):
+        if self.wayland:
+            self.desktop.connect()
+            if self.cancelled or (self.root / 'STOP').exists():
+                fail('STOPPED', 'Input paused before permission completed.')
+        elif not self.desktop.connection.has_extension('XTEST'):
             fail('INPUT_UNAVAILABLE', 'The X server does not expose the XTest input extension.')
 
     def ensure_focus(self, pid):
@@ -80,6 +91,24 @@ class Driver:
 
     def status(self):
         s = self.session(fresh=True)
+        if self.wayland:
+            ready = bool(self.desktop.session and self.desktop.frame)
+            return dict(version='0.1.0', platform='Linux', backend='atspi-wayland-portal', **s,
+                        accessibility=self.accessibility.available(), screenRecording=ready,
+                        inputAvailable=ready and s['sessionActive'] and s['lockStateKnown'] and not s['locked'],
+                        permissionRequired=not ready, ocrAvailable=shutil.which('tesseract') is not None,
+                        secureInput=False, secureInputDetection='unavailable on Wayland',
+                        stopped=(self.root / 'STOP').exists(), perAppApprovals=False, allAppsAllowed=True,
+                        visualPointerAvailable=False, visualPointer=False,
+                        coordinateSpace='selected-monitor-logical',
+                        capabilities=['accessibility', 'monitor-screenshots', 'ocr', 'mouse', 'keyboard'],
+                        limitations=['Experimental: GNOME RemoteDesktop/ScreenCast portals required',
+                                     'Select one monitor and allow remote interaction in the portal dialog',
+                                     'Coordinates are relative to the selected monitor, not global',
+                                     'No global window geometry/management, app screenshots or clipboard',
+                                     'AT-SPI discovery/focus depends on application support; no overlay',
+                                     'Cursor is always embedded in portal screenshots',
+                                     'Locked or inactive sessions are not controllable'])
         x11 = self.desktop is not None and s['sessionType'] == 'x11'
         return dict(version='0.1.0', platform='Linux', distribution=platform.freedesktop_os_release().get('PRETTY_NAME', 'Linux'),
                     architecture=platform.machine(), backend='atspi-x11', **s,
@@ -103,6 +132,8 @@ class Driver:
         x, y = number(args.get('x')), number(args.get('y'))
         if args.get('screenshotId'):
             s = self.images.get(args['screenshotId'], 'UNKNOWN_SCREENSHOT')
+            if self.wayland and s.get('generation') != self.desktop.generation:
+                fail('STALE_SNAPSHOT', 'The sharing session changed. Capture a new screenshot.')
             if s['windowId'] is not None:
                 w = self.desktop.window(s['windowId'])
                 if self.desktop.pid(w) != s['pid'] or not same_geometry(self.desktop.bounds(w), s['frame']):
@@ -121,7 +152,7 @@ class Driver:
         data = io.BytesIO()
         image.save(data, format='PNG')
         payload = data.getvalue()
-        key = self.images.add(dict(frame=frame, width=image.width, height=image.height, pid=pid, windowId=wid))
+        key = self.images.add(dict(frame=frame, width=image.width, height=image.height, pid=pid, windowId=wid, generation=self.desktop.generation if self.wayland else None))
         result = dict(screenshotId=key, width=image.width, height=image.height, screenBounds=frame,
                       imageBase64=base64.b64encode(payload).decode('ascii'), mimeType='image/png',
                       expiresInSeconds=120, captureMode=mode)
@@ -197,8 +228,14 @@ class Driver:
     def execute(self, method, args):
         if method == 'status':
             return self.status()
+        if self.wayland and method in ('windows', 'window', 'clipboard_read', 'clipboard_write'):
+            fail('WAYLAND_OPERATION_UNSUPPORTED', 'This operation has no supported portable Wayland implementation. Use AT-SPI or monitor screenshots.')
         if method == 'request_permissions':
             Gio.Settings.new('org.gnome.desktop.interface').set_boolean('toolkit-accessibility', True)
+            if self.wayland:
+                self.require_session()
+                self.desktop.connect()
+                return dict(**self.status(), setupMessage='Desktop sharing approved for this helper session.')
             return dict(**self.status(), setupMessage='Desktop accessibility enabled. Run in Ubuntu on Xorg as the desktop user; restart apps that do not expose an AT-SPI tree.')
         if method == 'list_apps':
             self.require_session()
@@ -217,7 +254,13 @@ class Driver:
             self.require_session()
             return dict(displays=self.desktop.monitors())
         if method == 'inspect':
-            return self.accessibility.inspect(self.app(args), args)
+            result = self.accessibility.inspect(self.app(args), args)
+            if self.wayland:
+                # AT-SPI global coordinates are often zero/invalid on Wayland.
+                for element in result['elements']:
+                    element.pop('bounds', None)
+                result['coordinateBoundsAvailable'] = False
+            return result
         if method == 'screenshot':
             return self.screenshot(args)
         if method == 'set_value':
@@ -367,7 +410,7 @@ def setup(driver):
         label.set_text('Chatuse for Ubuntu\n\nSession: ' + s['sessionType'] +
                        '\nAccessibility: ' + str(s['accessibility']) + '\nScreen capture: ' + str(s['screenRecording']) +
                        '\nInput paused: ' + str(s['stopped']) +
-                       '\n\nUse an unlocked Ubuntu on Xorg desktop. Wayland is not supported. Run Chatuse as your desktop user, not root.')
+                       '\n\nUse an unlocked desktop as its user. Wayland uses a portal sharing prompt; select one monitor and enable remote interaction.')
     box.pack_start(label, True, True, 0)
     enable = Gtk.Button(label='Enable desktop accessibility')
     enable.connect('clicked', lambda *_: (driver.execute('request_permissions', {}), refresh()))
@@ -439,6 +482,8 @@ def main():
     finally:
         if driver.desktop:
             driver.desktop.release()
+            if driver.wayland:
+                driver.desktop.close()
 
 
 if __name__ == '__main__':
