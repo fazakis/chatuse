@@ -1,6 +1,6 @@
 # Chatuse on Ubuntu
 
-The Linux backend supports **Ubuntu 24.04, GNOME, X11/Xorg, and a local unlocked graphical session**. It implements the existing 21-tool MCP interface; no model API, network listener, Swift compiler, or per-app allowlist is added.
+The Linux backend supports **Ubuntu 24.04/GNOME on Xorg**, plus experimental **GNOME Wayland** through desktop portals. Both require a local unlocked graphical session. It implements the 22-tool MCP interface; no model API, network listener, Swift compiler, or per-app allowlist is added.
 
 ## Install and run
 
@@ -25,7 +25,7 @@ Expected readiness:
 
 The macOS-compatible `screenRecording` field means the current X11 display connection is available; Linux does not present Apple's Screen Recording consent dialog.
 
-## Desktop behavior
+## X11 desktop behavior
 
 | Area | Linux behavior |
 | --- | --- |
@@ -44,7 +44,7 @@ The macOS-compatible `screenRecording` field means the current X11 display conne
 
 ## Session and input controls
 
-The helper checks logind's active user session and lock hint, plus the desktop screen-shield service when available. It refuses desktop operations when the active session cannot be established, is locked, or is Wayland. It does not unlock sessions or change login settings.
+The helper checks logind's active user session and lock hint, plus the desktop screen-shield service when available. It refuses desktop operations when the active session cannot be established, or is locked. Wayland uses a separate portal backend, never Xwayland for full-desktop control. It does not unlock sessions or change login settings.
 
 X11 has **no macOS-style global Secure Input indicator**. Status explicitly reports `secureInputDetection: "unavailable on X11"`; the compatibility field `secureInput:false` must not be interpreted as a system-wide guarantee that no password prompt is visible. Secure accessible field values are redacted, but the assistant must still inspect the intended target before typing.
 
@@ -54,7 +54,39 @@ Input operations hold the checkout's file lock, verify focus, revalidate screens
 
 ## Wayland
 
-Wayland is not currently supported. The backend refuses full control even if Xwayland exposes a `DISPLAY`, because that would omit native Wayland apps and provide misleading observations. Native Wayland support needs a separate portal-mediated capture/input implementation and is not supplied by this backend.
+Experimental Wayland support uses **RemoteDesktop + ScreenCast desktop portals**, **PipeWire/GStreamer** capture, and **AT-SPI**. It has been exercised on Ubuntu 26.04.1, GNOME 50, Intel graphics. Other compositors, mixed-DPI/multiple monitors and portal versions are not validated. There is no root/uinput workaround, screen-lock bypass, GNOME extension, or Xwayland fallback.
+
+Install the common dependencies above, plus:
+
+```sh
+sudo apt install gir1.2-gstreamer-1.0 gir1.2-gst-plugins-base-1.0 \
+  gstreamer1.0-pipewire gstreamer1.0-plugins-base
+```
+
+Use a current `xdg-desktop-portal` and compositor backend (GNOME: `xdg-desktop-portal-gnome`) supporting RemoteDesktop and ScreenCast. Run `./chatuse permissions` or the MCP `chatuse_request_permissions` tool. In the normal system dialog, select **one monitor**, enable **Allow Remote Interaction**, optionally remember the selection, and click **Share** within 32 seconds. Denial/timeouts return explicit errors and close pending requests. Retry explicitly when ready; input is never automatically replayed.
+
+A persistent MCP/helper connection holds the session. CLI calls are one-shot and close it on exit; the portal may remember consent via a private, mode-0600 `runtime/wayland-restore-token` file. `status` does not prompt and reports `permissionRequired` until the current helper has connected. Subsequent input/capture requests may reconnect through the portal. Never publish the restore-token file. To forget Chatuse's saved grant, close its connections and remove that file locally (the desktop may also retain its permission record).
+
+| Operation | Wayland behavior |
+| --- | --- |
+| Screenshot/OCR | Only the selected monitor, with compositor cursor embedded. Omit `app`, `pid`, and `windowId`; `displayId` is 0. Fresh PipeWire frames, not Xwayland screenshots. |
+| Coordinates | Logical points **relative to the selected monitor**, origin `(0,0)`, not global desktop coordinates. Prefer returned screenshot pixel coordinates + `screenshotId`. References from a previous sharing session are rejected. Reopen sharing after changing monitor layout/scaling; pixel-size changes abort capture. |
+| Pointer/buttons/drag/scroll | Portal input. The real compositor cursor moves; the X11 blue overlay is disabled. |
+| Keyboard | ASCII via portal keysyms; Unicode via the focused AT-SPI editable field, without reading field contents or changing the clipboard. Unicode into protected or inaccessible fields returns an explicit error before typing. Held-key release is attempted on handled failures. Target app must already be active; unknown/changed focus fails closed. |
+| App discovery/inspect/actions | AT-SPI-exposing applications only. Global accessibility bounds are omitted because they are unreliable on Wayland. Secure fields remain redacted. |
+| Window control / app screenshots / clipboard | Explicitly unsupported; no silent full-desktop capture when an app capture was requested. Use supported accessible actions or an observed monitor click. |
+| Locked/inactive desktop | Refused. This does **not** enable remote unlocking. |
+
+`./chatuse screenshot '{"maxWidth":1280}'` captures the selected monitor. For mouse actions, keep a persistent MCP/native connection so screenshot references remain valid. To type, first focus the app with an observed monitor click, then use its PID from `list_apps`.
+
+Opt-in live check (approve the portal dialog if presented, leave input idle):
+
+```sh
+python3 scripts/linux/wayland-smoke.py
+node scripts/linux/wayland-mcp-smoke.mjs
+```
+
+It uses an owned GTK window, tests Unicode, shortcuts, accessible and coordinate clicks, scrolling, drag, screenshots and emergency stop, and writes `artifacts/wayland-smoke-report.json`. It does not automate consent or alter login/display settings.
 
 ## Test
 

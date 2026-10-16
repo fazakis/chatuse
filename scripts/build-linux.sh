@@ -28,4 +28,4 @@ exec /usr/bin/python3 "$chatuse_root/linux/pointer.py" "$@"
 SH
 chmod +x runtime/chatuse-pointer
 ln -sf "$(command -v node)" runtime/node
-printf '%s\n' 'Built Chatuse Linux/X11 launchers. Run ./chatuse status inside your desktop session.'
+printf '%s\n' 'Built Chatuse Linux launchers. Run ./chatuse status inside your desktop session.'
